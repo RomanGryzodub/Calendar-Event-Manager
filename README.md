@@ -1,4 +1,5 @@
 Calendar Event Manager
+
 This Google Apps Script project is designed to manage calendar events by reading a schedule from a Google Sheets document, grouping same-day events, and creating corresponding events in a Google Calendar. It also includes functionality to fetch existing calendar events and update the spreadsheet.
 
 Features
