@@ -1,0 +1,107 @@
+function clearCalendarEvents() {
+  let communityCalendar = CalendarApp.getCalendarById("YOUR_CALENDAR_ID");
+
+  let now = new Date();
+  let events = communityCalendar.getEvents(new Date(now.getFullYear(), 0, 1), new Date(now.getFullYear() + 1, 0, 1));
+
+  for (let i = 0; i < events.length; i++) {
+    events[i].deleteEvent();
+  }
+}
+
+function createCalendarEvent() {
+  let communityCalendar = CalendarApp.getCalendarById("YOUR_CALENDAR_ID");
+
+  clearCalendarEvents();
+
+  let sheet = SpreadsheetApp.getActiveSheet();
+  let schedule = sheet.getDataRange().getValues();
+  schedule.splice(0, 1); // Remove header row
+
+  // Group events by title and date
+  let groupedEvents = {};
+  schedule.forEach(function(entry) {
+    let date = new Date(entry[0]);
+    let day = entry[1];
+    let timeRange = entry[2];
+    let title = entry[3];
+
+    if (!title) return; // Skip entries without a title
+
+    let dateKey = date.toDateString();
+    if (!groupedEvents[dateKey]) {
+      groupedEvents[dateKey] = {};
+    }
+    if (!groupedEvents[dateKey][title]) {
+      groupedEvents[dateKey][title] = [];
+    }
+
+    groupedEvents[dateKey][title].push(timeRange);
+  });
+
+  // Create calendar events from grouped data
+  Object.keys(groupedEvents).forEach(function(dateKey) {
+    let dateEvents = groupedEvents[dateKey];
+    Object.keys(dateEvents).forEach(function(title) {
+      let timeRanges = dateEvents[title];
+      let description = ''; // Define a description if needed
+
+      timeRanges.sort(); // Ensure the time ranges are sorted
+
+      let startHour = parseInt(timeRanges[0].split('-')[0]);
+      let endHour = parseInt(timeRanges[timeRanges.length - 1].split('-')[1]);
+
+      let dateParts = dateKey.split(' ');
+      let date = new Date(dateParts[3], getMonthFromString(dateParts[1]), dateParts[2]);
+
+      let startDateTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), startHour);
+      let endDateTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), endHour);
+
+      if (startDateTime < endDateTime) {
+        let event = communityCalendar.createEvent(title, startDateTime, endDateTime, { description: description });
+
+        // Set the event color based on the description if needed
+        if (description === "WORK/JOB") {
+          event.setColor(CalendarApp.EventColor.GRAY);
+        } else if (description === "SELF DEVELOPMENT") {
+          event.setColor(CalendarApp.EventColor.CYAN);
+        } else if (description === "HEALTH") {
+          event.setColor(CalendarApp.EventColor.PALE_GREEN);
+        } else if (description === "HOBBY") {
+          event.setColor(CalendarApp.EventColor.GREEN);
+        } else if (description === "FAMILY/RELATIONSHIPS") {
+          event.setColor(CalendarApp.EventColor.YELLOW);
+        }
+      } else {
+        Logger.log('Invalid event time range for: ' + title);
+      }
+    });
+  });
+}
+
+function getMonthFromString(mon){
+  return new Date(Date.parse(mon +" 1, 2012")).getMonth();
+}
+
+function fetchCalendarEvents() {
+  let communityCalendar = CalendarApp.getCalendarById("YOUR_CALENDAR_ID");
+  let sheet = SpreadsheetApp.getActiveSheet();
+
+  sheet.getRange('A2:D').clearContent(); // Clear all rows starting from the second row
+
+  let now = new Date();
+  let events = communityCalendar.getEvents(new Date(now.getFullYear(), 0, 1), new Date(now.getFullYear() + 1, 0, 1));
+
+  for (let i = 0; i < events.length; i++) {
+    let startDateTime = events[i].getStartTime();
+    let endDateTime = events[i].getEndTime();
+
+    let startHour = startDateTime.getHours();
+    let endHour = endDateTime.getHours();
+
+    sheet.getRange(i + 2, 1).setValue(new Date(startDateTime.getFullYear(), startDateTime.getMonth(), startDateTime.getDate()));
+    sheet.getRange(i + 2, 2).setValue(startDateTime.toString().split(' ')[0]); // Day of the week
+    sheet.getRange(i + 2, 3).setValue(startHour + '-' + endHour);
+    sheet.getRange(i + 2, 4).setValue(events[i].getTitle());
+  }
+}
