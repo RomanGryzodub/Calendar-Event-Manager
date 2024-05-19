@@ -1,6 +1,5 @@
 function clearCalendarEvents() {
-  let communityCalendar = CalendarApp.getCalendarById("YOUR_CALENDAR_ID");
-
+  let communityCalendar = CalendarApp.getCalendarById("e47f763cd0b20ebc10a12790d0684fc8f229e06950639273e7b7b43c0d4d45d6@group.calendar.google.com");
   let now = new Date();
   let events = communityCalendar.getEvents(new Date(now.getFullYear(), 0, 1), new Date(now.getFullYear() + 1, 0, 1));
 
@@ -10,21 +9,21 @@ function clearCalendarEvents() {
 }
 
 function createCalendarEvent() {
-  let communityCalendar = CalendarApp.getCalendarById("YOUR_CALENDAR_ID");
+  let communityCalendar = CalendarApp.getCalendarById("e47f763cd0b20ebc10a12790d0684fc8f229e06950639273e7b7b43c0d4d45d6@group.calendar.google.com");
 
-  clearCalendarEvents();
+  // clearCalendarEvents();
 
   let sheet = SpreadsheetApp.getActiveSheet();
   let schedule = sheet.getDataRange().getValues();
   schedule.splice(0, 1); // Remove header row
 
-  // Group events by title and date
+  // Group events by date and title
   let groupedEvents = {};
   schedule.forEach(function(entry) {
     let date = new Date(entry[0]);
-    let day = entry[1];
     let timeRange = entry[2];
     let title = entry[3];
+    let category = entry[4]; // Get the activity category
 
     if (!title) return; // Skip entries without a title
 
@@ -33,58 +32,78 @@ function createCalendarEvent() {
       groupedEvents[dateKey] = {};
     }
     if (!groupedEvents[dateKey][title]) {
-      groupedEvents[dateKey][title] = [];
+      groupedEvents[dateKey][title] = { timeRanges: [], category: category };
     }
 
-    groupedEvents[dateKey][title].push(timeRange);
+    groupedEvents[dateKey][title].timeRanges.push(timeRange);
   });
 
   // Create calendar events from grouped data
   Object.keys(groupedEvents).forEach(function(dateKey) {
     let dateEvents = groupedEvents[dateKey];
     Object.keys(dateEvents).forEach(function(title) {
-      let timeRanges = dateEvents[title];
-      let description = ''; // Define a description if needed
+      let { timeRanges, category } = dateEvents[title];
 
-      timeRanges.sort(); // Ensure the time ranges are sorted
+      // Sort time ranges and merge consecutive ranges
+      timeRanges.sort();
+      let mergedTimeRanges = [];
+      let currentRange = timeRanges[0];
 
-      let startHour = parseInt(timeRanges[0].split('-')[0]);
-      let endHour = parseInt(timeRanges[timeRanges.length - 1].split('-')[1]);
+      for (let i = 1; i < timeRanges.length; i++) {
+        let [currentStart, currentEnd] = currentRange.split('-').map(Number);
+        let [nextStart, nextEnd] = timeRanges[i].split('-').map(Number);
 
-      let dateParts = dateKey.split(' ');
-      let date = new Date(dateParts[3], getMonthFromString(dateParts[1]), dateParts[2]);
-
-      let startDateTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), startHour);
-      let endDateTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), endHour);
-
-      if (startDateTime < endDateTime) {
-        let event = communityCalendar.createEvent(title, startDateTime, endDateTime, { description: description });
-
-        // Set the event color based on the description if needed
-        if (description === "WORK/JOB") {
-          event.setColor(CalendarApp.EventColor.GRAY);
-        } else if (description === "SELF DEVELOPMENT") {
-          event.setColor(CalendarApp.EventColor.CYAN);
-        } else if (description === "HEALTH") {
-          event.setColor(CalendarApp.EventColor.PALE_GREEN);
-        } else if (description === "HOBBY") {
-          event.setColor(CalendarApp.EventColor.GREEN);
-        } else if (description === "FAMILY/RELATIONSHIPS") {
-          event.setColor(CalendarApp.EventColor.YELLOW);
+        if (currentEnd === nextStart) {
+          currentRange = currentStart + '-' + nextEnd; // Merge ranges
+        } else {
+          mergedTimeRanges.push(currentRange);
+          currentRange = timeRanges[i];
         }
-      } else {
-        Logger.log('Invalid event time range for: ' + title);
       }
+      mergedTimeRanges.push(currentRange); // Add the last range
+
+      mergedTimeRanges.forEach(function(timeRange) {
+        let [startHour, endHour] = timeRange.split('-').map(Number);
+
+        let dateParts = dateKey.split(' ');
+        let date = new Date(dateParts[3], getMonthFromString(dateParts[1]), parseInt(dateParts[2]));
+
+        let startDateTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), startHour);
+        let endDateTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), endHour);
+
+        if (startDateTime < endDateTime) {
+          let event = communityCalendar.createEvent(title, startDateTime, endDateTime, { description: category });
+
+          // Set the event color based on the category
+          if (category === "WORK/JOB") {
+            event.setColor(CalendarApp.EventColor.GRAY);
+          } else if (category === "SPIRITUAL") {
+            event.setColor(CalendarApp.EventColor.PALE_BLUE);
+          } else if (category === "HEALTH") {
+            event.setColor(CalendarApp.EventColor.PALE_GREEN);
+          } else if (category === "HOBBY") {
+            event.setColor(CalendarApp.EventColor.GREEN);
+          } else if (category === "FAMILY/RELATIONSHIPS") {
+            event.setColor(CalendarApp.EventColor.YELLOW);
+          } else if (category === "FRIENDS") {
+            event.setColor(CalendarApp.EventColor.MAUVE); // Using mauve for friends
+          } else if (category === "SELF DEVELOPMENT") {
+            event.setColor(CalendarApp.EventColor.CYAN);
+          }
+        } else {
+          Logger.log('Invalid event time range for: ' + title);
+        }
+      });
     });
   });
 }
 
-function getMonthFromString(mon){
-  return new Date(Date.parse(mon +" 1, 2012")).getMonth();
+function getMonthFromString(mon) {
+  return new Date(Date.parse(mon + " 1, 2012")).getMonth();
 }
 
 function fetchCalendarEvents() {
-  let communityCalendar = CalendarApp.getCalendarById("YOUR_CALENDAR_ID");
+  let communityCalendar = CalendarApp.getCalendarById("e47f763cd0b20ebc10a12790d0684fc8f229e06950639273e7b7b43c0d4d45d6@group.calendar.google.com");
   let sheet = SpreadsheetApp.getActiveSheet();
 
   sheet.getRange('A2:D').clearContent(); // Clear all rows starting from the second row
